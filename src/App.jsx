@@ -1,5 +1,5 @@
 import React from 'react';
-import DatabaseManagementApp from './DatabaseManagementApp.jsx';
+import DatabaseManagementApp from './DatabaseManagementApp_old.jsx';
 
 function App() {
   return (
