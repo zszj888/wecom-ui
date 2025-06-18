@@ -1,0 +1,75 @@
+import { defineConfig, loadEnv } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig(({ command, mode }) => {
+    const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
+    // const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
+        
+    console.log(`Starting Vite dev server in ${BASE_URL} mode with network access enabled`)
+    
+    return {
+        plugins: [react()],
+        build: {
+            outDir: './dist',
+            emptyOutDir: true
+        },
+        define: {
+            'import.meta.env.VITE_ENV': JSON.stringify(mode),
+            'import.meta.env.VITE_API_BASE': JSON.stringify(BASE_URL)
+        },
+        server: {
+            host: '0.0.0.0',
+            port: 5173,
+            strictPort: false, // 允许端口自动切换
+            proxy: {
+                '/db-manager/api': {
+                    target: `${BASE_URL}/wshot-ka-jiali-service`,
+                    changeOrigin: true,
+                    secure: false,
+                    configure: (proxy, options) => {
+                        proxy.on('proxyReq', (proxyReq, req, res) => {
+                            console.log(`Proxying to: ${req.url}`);
+                        });
+
+                        proxy.on('proxyRes', (proxyRes, req, res) => {
+                            console.log('Response:', {
+                                statusCode: proxyRes.statusCode,
+                                headers: proxyRes.headers,
+                                url: req.url
+                            });
+                        });
+
+                        proxy.on('error', (err, req, res) => {
+                            console.error('Proxy Error:', err);
+                        });
+                    }
+                },
+                '/admin/aad_users': {
+                    target: `${BASE_URL}/aad-database-syncer`,
+                    changeOrigin: true,
+                    secure: false
+                },
+                '/userSync': {
+                    target: `${BASE_URL}/wshoto-user-sync-service`,
+                    changeOrigin: true,
+                    secure: false
+                }
+            },
+            hmr: {
+                overlay: false,
+                protocol: 'ws',
+                timeout: 30000
+            },
+            cors: {
+                origin: '*'
+            },
+            middlewares: [
+                (req, res, next) => {
+                    const clientIP = req.socket.remoteAddress
+                    console.log(`[${new Date().toISOString()}] Access from ${clientIP}: ${req.method} ${req.url}`)
+                    next()
+                }
+            ]
+        }
+    }
+})
