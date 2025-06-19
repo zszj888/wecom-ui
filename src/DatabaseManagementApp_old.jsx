@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState, useCallback} from 'react';
-import {Database, Play, Table, RefreshCcw, Users, Building, Settings, ChevronDown, ChevronUp} from 'lucide-react';
+import {Database, Play, Table, RefreshCcw, Users, Building, Settings, ChevronDown, ChevronUp, History, Star, Search, Clock, Copy, Trash2} from 'lucide-react';
 import Split from 'react-split';
 
 const DatabaseManagementApp = () => {
@@ -35,6 +35,34 @@ const DatabaseManagementApp = () => {
     const [isLoadingTableData, setIsLoadingTableData] = useState(false);
     const loadedTablesRef = useRef(new Set());
     const loadedStructuresRef = useRef(new Set());
+
+    // SQL History related states
+    const [sqlHistory, setSqlHistory] = useState([]);
+    const [showSqlHistory, setShowSqlHistory] = useState(false);
+    const [historySearchTerm, setHistorySearchTerm] = useState('');
+    const [favoriteQueries, setFavoriteQueries] = useState([]);
+
+    // Load SQL history and favorites from localStorage on component mount
+    useEffect(() => {
+        const savedHistory = localStorage.getItem('sqlHistory');
+        const savedFavorites = localStorage.getItem('sqlFavorites');
+
+        if (savedHistory) {
+            try {
+                setSqlHistory(JSON.parse(savedHistory));
+            } catch (error) {
+                console.error('Failed to parse SQL history from localStorage:', error);
+            }
+        }
+
+        if (savedFavorites) {
+            try {
+                setFavoriteQueries(JSON.parse(savedFavorites));
+            } catch (error) {
+                console.error('Failed to parse SQL favorites from localStorage:', error);
+            }
+        }
+    }, []);
 
     // Fetch databases on component mount
     useEffect(() => {
@@ -201,6 +229,53 @@ const DatabaseManagementApp = () => {
         return currentDatabase; // 如果找不到匹配的数据库，使用当前数据库
     };
 
+    // SQL History management functions
+    const addToHistory = useCallback((sql, database, success = true) => {
+        const historyItem = {
+            id: Date.now(),
+            sql: sql.trim(),
+            database,
+            timestamp: new Date().toISOString(),
+            success
+        };
+
+        setSqlHistory(prev => {
+            const newHistory = [historyItem, ...prev.filter(item => item.sql !== sql.trim())].slice(0, 100); // Keep last 100 queries
+            localStorage.setItem('sqlHistory', JSON.stringify(newHistory));
+            return newHistory;
+        });
+    }, []);
+
+    const toggleFavorite = useCallback((sql) => {
+        setFavoriteQueries(prev => {
+            const isFavorite = prev.some(fav => fav.sql === sql);
+            let newFavorites;
+
+            if (isFavorite) {
+                newFavorites = prev.filter(fav => fav.sql !== sql);
+            } else {
+                newFavorites = [...prev, {
+                    id: Date.now(),
+                    sql: sql.trim(),
+                    timestamp: new Date().toISOString()
+                }];
+            }
+
+            localStorage.setItem('sqlFavorites', JSON.stringify(newFavorites));
+            return newFavorites;
+        });
+    }, []);
+
+    const loadQueryFromHistory = useCallback((sql) => {
+        setSqlQuery(sql);
+        setShowSqlHistory(false);
+    }, []);
+
+    const clearHistory = useCallback(() => {
+        setSqlHistory([]);
+        localStorage.removeItem('sqlHistory');
+    }, []);
+
     // Modified executeSql function
     const executeSql = async () => {
         try {
@@ -210,7 +285,7 @@ const DatabaseManagementApp = () => {
             // 提取SQL中的表名并找到对应的数据库
             const tableNames = extractTableNames(sqlQuery);
             const targetDb = tableNames.length > 0 ? findDatabaseForTable(tableNames[0]) : currentDatabase;
-            
+
             // 在执行SQL前更新当前数据库上下文
             setCurrentDatabase(targetDb);
 
@@ -225,11 +300,18 @@ const DatabaseManagementApp = () => {
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to execute SQL');
             }
+
+            // Add to history on successful execution
+            addToHistory(sqlQuery, targetDb, true);
+
             setSqlResult(data);
             setActiveTab('sqlResult');
         } catch (error) {
             console.error('Failed to execute SQL:', error);
             setSqlError(error.message);
+
+            // Add to history even on failure for debugging
+            addToHistory(sqlQuery, currentDatabase, false);
         } finally {
             setSqlLoading(false);
         }
@@ -432,6 +514,186 @@ const DatabaseManagementApp = () => {
                         </tbody>
                     </table>
                 </div>
+            </div>
+        );
+    };
+
+    // Render SQL History Panel - Compact Version
+    const renderSqlHistoryPanel = () => {
+        const filteredHistory = sqlHistory.filter(item =>
+            item.sql.toLowerCase().includes(historySearchTerm.toLowerCase())
+        );
+
+        const isFavorite = (sql) => favoriteQueries.some(fav => fav.sql === sql);
+
+        return (
+            <div className="mb-3">
+                {/* Compact Header */}
+                <button
+                    onClick={() => setShowSqlHistory(!showSqlHistory)}
+                    className="flex items-center justify-between w-full px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
+                >
+                    <div className="flex items-center">
+                        <History size={14} className="mr-2"/>
+                        <span className="font-medium">SQL History</span>
+                        {sqlHistory.length > 0 && (
+                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-600 rounded-full">
+                                {sqlHistory.length}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                        {sqlHistory.length > 0 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    clearHistory();
+                                }}
+                                className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                title="Clear all history"
+                            >
+                                <Trash2 size={12}/>
+                            </button>
+                        )}
+                        {showSqlHistory ? (
+                            <ChevronUp className="h-4 w-4" />
+                        ) : (
+                            <ChevronDown className="h-4 w-4" />
+                        )}
+                    </div>
+                </button>
+
+                {/* Collapsible Content */}
+                {showSqlHistory && (
+                    <div className="mt-2 bg-white rounded-lg shadow-sm border border-gray-200">
+                        {/* Compact Search */}
+                        <div className="p-2 border-b border-gray-100">
+                            <div className="relative">
+                                <Search size={12} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400"/>
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={historySearchTerm}
+                                    onChange={(e) => setHistorySearchTerm(e.target.value)}
+                                    className="w-full pl-6 pr-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Compact History List */}
+                        <div className="max-h-64 overflow-y-auto">
+                            {filteredHistory.length === 0 ? (
+                                <div className="p-3 text-center text-gray-500 text-xs">
+                                    {sqlHistory.length === 0 ? 'No SQL history yet' : 'No matching queries found'}
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {filteredHistory.map((item) => (
+                                        <div key={item.id} className="p-2 hover:bg-gray-50 group">
+                                            <div className="flex justify-between items-start mb-1">
+                                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                    <Clock size={10}/>
+                                                    <span>{new Date(item.timestamp).toLocaleTimeString()}</span>
+                                                    <span className="px-1 py-0.5 rounded text-xs bg-gray-100">
+                                                        {item.database}
+                                                    </span>
+                                                    <span className={`px-1 py-0.5 rounded text-xs ${
+                                                        item.success ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+                                                    }`}>
+                                                        {item.success ? '✓' : '✗'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => toggleFavorite(item.sql)}
+                                                        className={`p-0.5 rounded hover:bg-gray-200 ${
+                                                            isFavorite(item.sql) ? 'text-yellow-500' : 'text-gray-400'
+                                                        }`}
+                                                        title={isFavorite(item.sql) ? 'Remove from favorites' : 'Add to favorites'}
+                                                    >
+                                                        <Star size={10} fill={isFavorite(item.sql) ? 'currentColor' : 'none'}/>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => navigator.clipboard.writeText(item.sql)}
+                                                        className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600"
+                                                        title="Copy to clipboard"
+                                                    >
+                                                        <Copy size={10}/>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => loadQueryFromHistory(item.sql)}
+                                                        className="px-1 py-0.5 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                                                    >
+                                                        Load
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div
+                                                className="text-xs text-gray-700 bg-gray-50 p-1 rounded font-mono cursor-pointer hover:bg-gray-100 truncate"
+                                                onClick={() => loadQueryFromHistory(item.sql)}
+                                                title={item.sql}
+                                            >
+                                                {item.sql.length > 80 ? `${item.sql.substring(0, 80)}...` : item.sql}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Compact Favorites Section */}
+                        {favoriteQueries.length > 0 && (
+                            <div className="border-t border-gray-100">
+                                <div className="p-2">
+                                    <h4 className="text-xs font-medium text-gray-700 flex items-center mb-2">
+                                        <Star size={12} className="mr-1 text-yellow-500"/>
+                                        Favorites ({favoriteQueries.length})
+                                    </h4>
+                                    <div className="space-y-1">
+                                        {favoriteQueries.map((fav) => (
+                                            <div key={fav.id} className="p-1.5 bg-yellow-50 border border-yellow-200 rounded group">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(fav.timestamp).toLocaleDateString()}
+                                                    </span>
+                                                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => toggleFavorite(fav.sql)}
+                                                            className="p-0.5 rounded hover:bg-yellow-200 text-yellow-600"
+                                                            title="Remove from favorites"
+                                                        >
+                                                            <Trash2 size={10}/>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigator.clipboard.writeText(fav.sql)}
+                                                            className="p-0.5 rounded hover:bg-yellow-200 text-yellow-600"
+                                                            title="Copy to clipboard"
+                                                        >
+                                                            <Copy size={10}/>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => loadQueryFromHistory(fav.sql)}
+                                                            className="px-1 py-0.5 text-xs bg-yellow-600 text-white rounded hover:bg-yellow-700"
+                                                        >
+                                                            Load
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    className="text-xs text-gray-700 font-mono cursor-pointer hover:bg-yellow-100 p-1 rounded truncate"
+                                                    onClick={() => loadQueryFromHistory(fav.sql)}
+                                                    title={fav.sql}
+                                                >
+                                                    {fav.sql.length > 60 ? `${fav.sql.substring(0, 60)}...` : fav.sql}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         );
     };
@@ -764,6 +1026,7 @@ const DatabaseManagementApp = () => {
             {/* Main Content */}
             <div className="p-6 overflow-auto">
                 {renderCompactAdminPanels()}
+                {renderSqlHistoryPanel()}
                 <div className="mb-6 bg-white rounded-xl shadow-md border border-gray-200">
                     <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                         <div className="flex items-center gap-4">
@@ -800,15 +1063,15 @@ const DatabaseManagementApp = () => {
                             onClick={executeSql}
                             disabled={sqlLoading}
                             className={`flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-                                ${sqlLoading 
-                                ? 'bg-gray-300 cursor-not-allowed' 
+                                ${sqlLoading
+                                ? 'bg-gray-300 cursor-not-allowed'
                                 : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                         >
                             {sqlLoading ? (
                                 <>
                                     <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     Executing...
                                 </>
@@ -820,19 +1083,34 @@ const DatabaseManagementApp = () => {
                         </button>
                     </div>
                     <div className="px-4 pb-4">
-                        <textarea
-                            ref={sqlTextareaRef}
-                            value={sqlQuery}
-                            onChange={(e) => setSqlQuery(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey && !sqlLoading) {
-                                    e.preventDefault();
-                                    executeSql();
-                                }
-                            }}
-                            className="w-full h-40 p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition-all duration-200 resize-y"
-                            placeholder="Enter your SQL query here... (Press Enter to execute, Shift+Enter for new line)"
-                        />
+                        <div className="relative">
+                            <textarea
+                                ref={sqlTextareaRef}
+                                value={sqlQuery}
+                                onChange={(e) => setSqlQuery(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey && !sqlLoading) {
+                                        e.preventDefault();
+                                        executeSql();
+                                    }
+                                }}
+                                className="w-full h-40 p-3 pr-12 border border-gray-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50 transition-all duration-200 resize-y"
+                                placeholder="Enter your SQL query here... (Press Enter to execute, Shift+Enter for new line)"
+                            />
+                            {sqlQuery.trim() && (
+                                <button
+                                    onClick={() => toggleFavorite(sqlQuery)}
+                                    className={`absolute top-3 right-3 p-1 rounded hover:bg-gray-200 transition-colors ${
+                                        favoriteQueries.some(fav => fav.sql === sqlQuery.trim())
+                                        ? 'text-yellow-500'
+                                        : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                                    title={favoriteQueries.some(fav => fav.sql === sqlQuery.trim()) ? 'Remove from favorites' : 'Add to favorites'}
+                                >
+                                    <Star size={16} fill={favoriteQueries.some(fav => fav.sql === sqlQuery.trim()) ? 'currentColor' : 'none'}/>
+                                </button>
+                            )}
+                        </div>
                         {sqlError && (
                             <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                                 <p className="text-sm text-red-600">{sqlError}</p>
