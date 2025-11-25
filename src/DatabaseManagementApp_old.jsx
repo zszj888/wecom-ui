@@ -740,7 +740,7 @@ const DatabaseManagementApp = () => {
             }));
 
             // Make the API call
-            const response = await fetch(`/userSync/${encodeURIComponent(corpId.trim())}`, {
+            const response = await fetch(`/admin/user-sync/${encodeURIComponent(corpId.trim())}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
