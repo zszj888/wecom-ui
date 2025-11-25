@@ -527,7 +527,7 @@ const DatabaseManagementApp = () => {
         const isFavorite = (sql) => favoriteQueries.some(fav => fav.sql === sql);
 
         return (
-            <div className="mb-3">
+            <div className="flex-1">
                 {/* Compact Header */}
                 <button
                     onClick={() => setShowSqlHistory(!showSqlHistory)}
@@ -721,18 +721,60 @@ const DatabaseManagementApp = () => {
     };
 
     const handleUserSync = async (corpId) => {
+        // Input validation
+        if (!corpId || typeof corpId !== 'string' || corpId.trim() === '') {
+            setUserSyncState(prev => ({
+                ...prev,
+                error: 'Please enter a valid Corp ID',
+                loading: false
+            }));
+            return;
+        }
+
         try {
-            setUserSyncState(prev => ({ ...prev, loading: true, error: null }));
-            const response = await fetch(`/userSync/${corpId}`, {
-                method: 'POST'
+            setUserSyncState(prev => ({
+                ...prev,
+                loading: true,
+                error: null,
+                logs: [...prev.logs, `Starting sync for Corp ID: ${corpId}...`]
+            }));
+
+            // Make the API call
+            const response = await fetch(`/userSync/${encodeURIComponent(corpId.trim())}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Server responded with status ${response.status}: ${errorText}`);
+            }
+
             const batchNo = await response.text();
-            setUserSyncState(prev => ({ ...prev, batchNo }));
+            
+            setUserSyncState(prev => ({
+                ...prev,
+                batchNo,
+                logs: [...prev.logs, `Sync started with batch number: ${batchNo}`]
+            }));
+            
+            // Fetch initial logs
             await fetchSyncLogs(batchNo);
+            
         } catch (error) {
-            setUserSyncState(prev => ({ ...prev, error: error.message }));
+            console.error('User sync failed:', error);
+            setUserSyncState(prev => ({
+                ...prev,
+                error: error.message || 'Failed to start user sync',
+                logs: [...prev.logs, `Error: ${error.message}`]
+            }));
         } finally {
-            setUserSyncState(prev => ({ ...prev, loading: false }));
+            setUserSyncState(prev => ({
+                ...prev,
+                loading: false
+            }));
         }
     };
 
@@ -785,26 +827,9 @@ const DatabaseManagementApp = () => {
         }
     };
 
-    const handleUpdateNotLoggedUsers = async () => {
-        try {
-            await fetch('/userSync/notLoggedUsers/updateState', {
-                method: 'PUT'
-            });
-            await fetch('/userSync/notLoggedUsers/deleteInWechat', {
-                method: 'PUT'
-            });
-            await fetch('/userSync/notLoggedUsers', {
-                method: 'DELETE'
-            });
-            alert('Not logged users have been processed');
-        } catch (error) {
-            console.error('Failed to process not logged users:', error);
-        }
-    };
-
     // Compact admin panels render function
     const renderCompactAdminPanels = () => (
-        <div className="mb-3">
+        <div className="flex-1">
             <button
                 onClick={() => setShowAdminPanels(!showAdminPanels)}
                 className="flex items-center px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
@@ -820,12 +845,12 @@ const DatabaseManagementApp = () => {
 
             {showAdminPanels && (
                 <div className="mt-3 space-y-3">
-                    {/* User Sync Operations - Compact */}
+                    {/* WSHOTO User Sync Service - Compact */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-3 border-b border-gray-100">
                             <h4 className="text-sm font-medium flex items-center text-gray-700">
                                 <Users className="mr-2 h-4 w-4"/>
-                                User Sync Operations
+                                WSHOTO User Sync Service
                             </h4>
                         </div>
                         <div className="p-3">
@@ -840,11 +865,42 @@ const DatabaseManagementApp = () => {
                                     <button
                                         onClick={() => handleUserSync(document.getElementById('corpIdInput').value)}
                                         disabled={userSyncState.loading}
-                                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                                        className={`px-2 py-1 ${userSyncState.loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded text-xs flex items-center`}
                                     >
-                                        Sync Users
+                                        {userSyncState.loading ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Syncing...
+                                            </>
+                                        ) : 'Sync Users'}
                                     </button>
                                 </div>
+
+                                {/* Error Message */}
+                                {userSyncState.error && (
+                                    <div className="col-span-2">
+                                        <div className="text-red-500 text-xs p-2 bg-red-50 rounded border border-red-200">
+                                            {userSyncState.error}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Logs */}
+                                {(userSyncState.logs && userSyncState.logs.length > 0) && (
+                                    <div className="col-span-2 mt-2">
+                                        <div className="text-xs font-medium text-gray-500 mb-1">Sync Logs:</div>
+                                        <div className="max-h-32 overflow-y-auto text-xs bg-gray-50 p-2 rounded border border-gray-200">
+                                            {userSyncState.logs.map((log, index) => (
+                                                <div key={index} className="py-1 border-b border-gray-100 last:border-0">
+                                                    {log}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="flex gap-2">
                                     <input
@@ -861,39 +917,16 @@ const DatabaseManagementApp = () => {
                                     </button>
                                 </div>
 
-                                <div className="flex gap-2 md:col-span-2">
-                                    <input
-                                        type="text"
-                                        placeholder="Source User IDs (comma-separated)"
-                                        className="px-2 py-1 border rounded text-sm flex-1"
-                                        id="sourceUserIdsInput"
-                                    />
-                                    <button
-                                        onClick={() => handleLoggedUsersSync(
-                                            document.getElementById('sourceUserIdsInput').value.split(',')
-                                        )}
-                                        className="px-2 py-1 bg-orange-600 text-white rounded hover:bg-orange-700 text-xs"
-                                    >
-                                        Sync Logged
-                                    </button>
-                                </div>
-
-                                <button
-                                    onClick={handleUpdateNotLoggedUsers}
-                                    className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
-                                >
-                                    Process Not Logged
-                                </button>
                             </div>
                         </div>
                     </div>
 
-                    {/* WeCom Sync Operations - Compact */}
+                    {/* WSHOT KA Jiali Service - Compact */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-3 border-b border-gray-100">
                             <h4 className="text-sm font-medium flex items-center text-gray-700">
                                 <RefreshCcw className="mr-2 h-4 w-4"/>
-                                WeCom Sync Operations
+                                WSHOT KA Jiali Service
                             </h4>
                         </div>
                         <div className="p-3">
@@ -907,27 +940,6 @@ const DatabaseManagementApp = () => {
                                     Sync Users
                                 </button>
 
-                                <div className="flex gap-2 md:col-span-2">
-                                    <input type="text" id="targetDept" placeholder="Target Department"
-                                           className="px-2 py-1 border rounded text-sm flex-1"/>
-                                    <button onClick={() => {
-                                        const dept = document.getElementById('targetDept').value;
-                                        handleWecomAction(`/rePushHKDept/${dept}`, 'POST');
-                                    }} className="px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-xs">
-                                        Re-Push HK Dept
-                                    </button>
-                                </div>
-
-                                <div className="flex gap-2 md:col-span-2">
-                                    <input type="text" id="adUsername" placeholder="AD Username"
-                                           className="px-2 py-1 border rounded text-sm flex-1"/>
-                                    <button onClick={() => {
-                                        const username = document.getElementById('adUsername').value;
-                                        handleWecomAction(`/admin/manual/disable/${username}`, 'POST');
-                                    }} className="px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs">
-                                        Disable User
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -1025,8 +1037,10 @@ const DatabaseManagementApp = () => {
 
             {/* Main Content */}
             <div className="p-6 overflow-auto">
-                {renderCompactAdminPanels()}
+                <div className="flex flex-wrap gap-3 mb-3">
                 {renderSqlHistoryPanel()}
+                {renderCompactAdminPanels()}
+            </div>
                 <div className="mb-6 bg-white rounded-xl shadow-md border border-gray-200">
                     <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                         <div className="flex items-center gap-4">

@@ -1,9 +1,9 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-export default defineConfig(({ command, mode }) => {
-    const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
-    // const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
+export default defineConfig(({ mode }) => {
+    // const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
+    const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
         
     console.log(`Starting Vite dev server in ${BASE_URL} mode with network access enabled`)
     
@@ -26,20 +26,20 @@ export default defineConfig(({ command, mode }) => {
                     target: `${BASE_URL}/wshot-ka-jiali-service`,
                     changeOrigin: true,
                     secure: false,
-                    configure: (proxy, options) => {
-                        proxy.on('proxyReq', (proxyReq, req, res) => {
+                    configure: (proxy, _options) => {
+                        proxy.on('proxyReq', (_proxyReq, req) => {
                             console.log(`Proxying to: ${req.url}`);
                         });
 
-                        proxy.on('proxyRes', (proxyRes, req, res) => {
+                        proxy.on('proxyRes', (_proxyRes, req) => {
                             console.log('Response:', {
-                                statusCode: proxyRes.statusCode,
-                                headers: proxyRes.headers,
+                                statusCode: _proxyRes.statusCode,
+                                headers: _proxyRes.headers,
                                 url: req.url
                             });
                         });
 
-                        proxy.on('error', (err, req, res) => {
+                        proxy.on('error', (err) => {
                             console.error('Proxy Error:', err);
                         });
                     }
@@ -64,7 +64,7 @@ export default defineConfig(({ command, mode }) => {
                 origin: '*'
             },
             middlewares: [
-                (req, res, next) => {
+                (req, _res, next) => {
                     const clientIP = req.socket.remoteAddress
                     console.log(`[${new Date().toISOString()}] Access from ${clientIP}: ${req.method} ${req.url}`)
                     next()
