@@ -29,6 +29,7 @@ const DatabaseManagementApp = () => {
         error: null
     });
     const [showAdminPanels, setShowAdminPanels] = useState(false);
+    const [aadIdsInput, setAadIdsInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isLoadingTables, setIsLoadingTables] = useState(false);
     const [isLoadingStructure, setIsLoadingStructure] = useState(false);
@@ -720,7 +721,7 @@ const DatabaseManagementApp = () => {
         }
     };
 
-    const handleUserSync = async (corpId) => {
+    const handleUserSync = async (corpId, aadIds) => {
         // Input validation
         if (!corpId || typeof corpId !== 'string' || corpId.trim() === '') {
             setUserSyncState(prev => ({
@@ -731,12 +732,21 @@ const DatabaseManagementApp = () => {
             return;
         }
 
+        // Parse aadIds from input string if provided
+        let parsedAadIds = null;
+        if (aadIds && aadIds.trim() !== '') {
+            parsedAadIds = aadIds.split(',').map(id => id.trim()).filter(id => id !== '');
+            if (parsedAadIds.length === 0) {
+                parsedAadIds = null;
+            }
+        }
+
         try {
             setUserSyncState(prev => ({
                 ...prev,
                 loading: true,
                 error: null,
-                logs: [...prev.logs, `Starting sync for Corp ID: ${corpId}...`]
+                logs: [...prev.logs, `Starting sync for Corp ID: ${corpId}${parsedAadIds ? `, 指定同步 ${parsedAadIds.length} 个用户` : ''}...`]
             }));
 
             // Make the API call
@@ -744,7 +754,8 @@ const DatabaseManagementApp = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                body: parsedAadIds ? JSON.stringify(parsedAadIds) : undefined
             });
 
             if (!response.ok) {
@@ -855,15 +866,25 @@ const DatabaseManagementApp = () => {
                         </div>
                         <div className="p-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 md:col-span-2">
                                     <input
                                         type="text"
                                         placeholder="Corp ID"
                                         className="px-2 py-1 border rounded text-sm flex-1"
                                         id="corpIdInput"
+                                        defaultValue="ww923b6887a01cf5a2"
                                     />
+                                    <input
+                                        type="text"
+                                        placeholder="指定AAD ID（可选，逗号分隔）"
+                                        className="px-2 py-1 border rounded text-sm flex-1"
+                                        value={aadIdsInput}
+                                        onChange={(e) => setAadIdsInput(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex gap-2">
                                     <button
-                                        onClick={() => handleUserSync(document.getElementById('corpIdInput').value)}
+                                        onClick={() => handleUserSync(document.getElementById('corpIdInput').value, aadIdsInput)}
                                         disabled={userSyncState.loading}
                                         className={`px-2 py-1 ${userSyncState.loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded text-xs flex items-center`}
                                     >
