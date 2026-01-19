@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -9,14 +11,14 @@
 }
 
 .gutter {
-  background-color: #f3f4f6;
+  background-color: #1a1a24;
   background-repeat: no-repeat;
   background-position: 50%;
   transition: background-color 0.2s ease;
 }
 
 .gutter:hover {
-  background-color: #e5e7eb;
+  background-color: #252532;
 }
 
 .gutter.gutter-horizontal {
@@ -31,24 +33,24 @@
   height: 4px;
 }
 
-/* Custom scrollbar styles */
+/* Custom scrollbar styles - Dark theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: #12121a;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: #3f3f46;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: #52525b;
 }
 
 /* Loading animation */

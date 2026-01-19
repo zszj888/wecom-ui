@@ -26,7 +26,8 @@ const DatabaseManagementApp = () => {
     });
     const [wecomState, setWecomState] = useState({
         loading: false,
-        error: null
+        error: null,
+        success: null
     });
     const [showAdminPanels, setShowAdminPanels] = useState(false);
     const [aadIdsInput, setAadIdsInput] = useState('');
@@ -75,7 +76,7 @@ const DatabaseManagementApp = () => {
     // Fetch databases
     const fetchDatabases = async () => {
         if (isLoading) return; // 防止重复调用
-        
+
         try {
             setIsLoading(true);
             console.log('Fetching databases...'); // 添加日志
@@ -87,12 +88,12 @@ const DatabaseManagementApp = () => {
             console.log('Received databases:', data); // 添加日志
 
             setDatabases(data);
-            
+
             if (data && data.length > 0) {
                 const firstDb = data[0];
                 console.log('Setting current database to:', firstDb); // 添加日志
                 setCurrentDatabase(firstDb);
-                
+
                 // 获取第一个数据库的表
                 console.log('Fetching tables for database:', firstDb); // 添加日志
                 const tablesResponse = await fetch(`/db-manager/api/tables?dbName=${encodeURIComponent(firstDb)}`);
@@ -101,25 +102,30 @@ const DatabaseManagementApp = () => {
                 }
                 const tablesData = await tablesResponse.json();
                 console.log('Received tables:', tablesData); // 添加日志
-                
+
+                // Normalize data: handle both array of strings and array of objects
+                const normalizedTables = Array.isArray(tablesData) ? tablesData.map(item =>
+                    typeof item === 'string' ? { table_name: item } : item
+                ) : [];
+
                 setDatabaseTables(prev => ({
                     ...prev,
-                    [firstDb]: tablesData
+                    [firstDb]: normalizedTables
                 }));
-                
+
                 // 如果有表，选择第一个表并加载其数据
-                if (tablesData && tablesData.length > 0) {
-                    const firstTable = tablesData[0];
+                if (normalizedTables.length > 0) {
+                    const firstTable = normalizedTables[0].table_name;
                     console.log('Setting active table to:', firstTable); // 添加日志
                     setActiveTable(firstTable);
-                    
+
                     // 使用 Promise.all 并发加载表数据和结构
                     await Promise.all([
                         fetchTableData(firstDb, firstTable),
                         fetchTableStructure(firstDb, firstTable)
                     ]);
                 }
-                
+
                 // 然后异步加载其他数据库的表
                 if (data.length > 1) {
                     console.log('Fetching tables for other databases...'); // 添加日志
@@ -150,19 +156,24 @@ const DatabaseManagementApp = () => {
             }
             const data = await response.json();
             console.log('Received tables for', dbName, ':', data); // 添加日志
-            
+
+            // Normalize data: handle both array of strings and array of objects
+            const normalizedTables = Array.isArray(data) ? data.map(item =>
+                typeof item === 'string' ? { table_name: item } : item
+            ) : [];
+
             setDatabaseTables(prev => ({
                 ...prev,
-                [dbName]: data
+                [dbName]: normalizedTables
             }));
-            
+
             loadedTablesRef.current.add(dbName);
-            
-            if (dbName === currentDatabase && data && data.length > 0 && !activeTable) {
-                setActiveTable(data[0]);
+
+            if (dbName === currentDatabase && normalizedTables.length > 0 && !activeTable) {
+                setActiveTable(normalizedTables[0].table_name);
                 await Promise.all([
-                    fetchTableData(dbName, data[0]),
-                    fetchTableStructure(dbName, data[0])
+                    fetchTableData(dbName, normalizedTables[0].table_name),
+                    fetchTableStructure(dbName, normalizedTables[0].table_name)
                 ]);
             }
         } catch (error) {
@@ -951,14 +962,28 @@ const DatabaseManagementApp = () => {
                             </h4>
                         </div>
                         <div className="p-3">
+                            {wecomState.error && (
+                                <div className="mb-2 p-2 bg-red-50 text-red-600 text-xs rounded">
+                                    {wecomState.error}
+                                </div>
+                            )}
+                            {wecomState.success && (
+                                <div className="mb-2 p-2 bg-green-50 text-green-600 text-xs rounded">
+                                    {wecomState.success}
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                <button onClick={() => handleWecomAction('/syncDept')}
-                                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs">
-                                    Sync Departments
+                                <button
+                                    onClick={() => handleWecomAction('/syncDept')}
+                                    disabled={wecomState.loading}
+                                    className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs disabled:opacity-50">
+                                    {wecomState.loading ? 'Syncing...' : 'Sync Departments'}
                                 </button>
-                                <button onClick={() => handleWecomAction('/initUser')}
-                                        className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs">
-                                    Sync Users
+                                <button
+                                    onClick={() => handleWecomAction('/initUser')}
+                                    disabled={wecomState.loading}
+                                    className="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs disabled:opacity-50">
+                                    {wecomState.loading ? 'Syncing...' : 'Sync Users'}
                                 </button>
 
                             </div>
@@ -972,7 +997,8 @@ const DatabaseManagementApp = () => {
     // Add new WeComSync functions
     const handleWecomAction = async (endpoint, method = 'GET', body = null) => {
         try {
-            setWecomState(prev => ({ ...prev, loading: true, error: null }));
+            setWecomState(prev => ({ ...prev, loading: true, error: null, success: null }));
+            console.log(`Fetching: ${endpoint}`);
             const options = {
                 method,
                 headers: {
@@ -983,13 +1009,18 @@ const DatabaseManagementApp = () => {
                 options.body = JSON.stringify(body);
             }
             const response = await fetch(`${endpoint}`, options);
-            const data = await response.json();
-            return data;
+            console.log(`Response status: ${response.status}`);
+            const text = await response.text();
+            console.log(`Response body:`, text);
+            const endpointName = endpoint === '/syncDept' ? 'Departments' : 'Users';
+            setWecomState(prev => ({ ...prev, loading: false, success: `Sync ${endpointName} completed!` }));
+            // Clear success message after 3 seconds
+            setTimeout(() => setWecomState(prev => ({ ...prev, success: null })), 3000);
+            return text ? JSON.parse(text) : null;
         } catch (error) {
-            setWecomState(prev => ({ ...prev, error: error.message }));
+            console.error(`Error fetching ${endpoint}:`, error);
+            setWecomState(prev => ({ ...prev, error: error.message, loading: false }));
             throw error;
-        } finally {
-            setWecomState(prev => ({ ...prev, loading: false }));
         }
     };
 
@@ -1024,31 +1055,37 @@ const DatabaseManagementApp = () => {
                                     {dbName}
                                 </div>
                                 <div className="pl-3 space-y-1">
-                                    {databaseTables[dbName]?.map(table => (
+                                    {databaseTables[dbName]?.map(tableInfo => {
+                                        const tableName = tableInfo?.table_name || tableInfo;
+                                        const rowCount = tableInfo?.approximate_row_count;
+                                        return (
                                         <button
-                                            key={`${dbName}-${table}`}
+                                            key={`${dbName}-${tableName}`}
                                             onClick={async () => {
                                                 setCurrentDatabase(dbName);
-                                                setActiveTable(table);
+                                                setActiveTable(tableName);
                                                 try {
                                                     await Promise.all([
-                                                        fetchTableData(dbName, table),
-                                                        fetchTableStructure(dbName, table)
+                                                        fetchTableData(dbName, tableName),
+                                                        fetchTableStructure(dbName, tableName)
                                                     ]);
                                                 } catch (error) {
                                                     console.error('Failed to load table data:', error);
                                                 }
                                             }}
                                             className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center transition-all duration-200 ${
-                                                currentDatabase === dbName && activeTable === table
+                                                currentDatabase === dbName && activeTable === tableName
                                                     ? 'bg-indigo-50 text-indigo-700 font-medium'
                                                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                                             }`}
                                         >
                                             <Table size={16} className="mr-2 text-gray-500"/>
-                                            {table}
+                                            <span className="flex-1">{tableName}</span>
+                                            <span className={`text-xs ${rowCount > 0 ? 'text-gray-500' : 'text-gray-400'}`}>
+                                                {rowCount > 0 ? `${rowCount.toLocaleString()} rows` : 'Empty'}
+                                            </span>
                                         </button>
-                                    ))}
+                                    )})}
                                 </div>
                             </div>
                         ))}
