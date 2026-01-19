@@ -982,7 +982,7 @@ const DatabaseManagementApp = () => {
             if (body) {
                 options.body = JSON.stringify(body);
             }
-            const response = await fetch(`/b${endpoint}`, options);
+            const response = await fetch(`${endpoint}`, options);
             const data = await response.json();
             return data;
         } catch (error) {

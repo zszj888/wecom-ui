@@ -2,9 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
-    const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
-    // const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
-        
+    // const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
+    const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
     console.log(`Starting Vite dev server in ${BASE_URL} mode with network access enabled`)
     
     return {
@@ -51,6 +50,16 @@ export default defineConfig(({ mode }) => {
                 },
                 '/admin/user-sync': {
                     target: `${BASE_URL}/wshoto-user-sync-service`,
+                    changeOrigin: true,
+                    secure: false
+                },
+                '/syncDept': {
+                    target: BASE_URL,
+                    changeOrigin: true,
+                    secure: false
+                },
+                '/initUser': {
+                    target: BASE_URL,
                     changeOrigin: true,
                     secure: false
                 }
