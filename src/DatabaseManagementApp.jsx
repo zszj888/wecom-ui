@@ -176,6 +176,32 @@ const NeonBadge = ({ children, variant = 'primary', size = 'sm' }) => {
     );
 };
 
+// Environment Badge Component
+const EnvironmentBadge = () => {
+    const isQA = import.meta.env.VITE_API_BASE?.includes('qa-kip-service-internal.kerryplus.com');
+    const envName = isQA ? 'QA' : 'PROD';
+    const envColor = isQA ? DESIGN_SYSTEM.colors.accent.primary : DESIGN_SYSTEM.colors.accent.success;
+
+    return (
+        <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '3px 8px',
+            borderRadius: '9999px',
+            fontSize: '10px',
+            fontWeight: 700,
+            fontFamily: DESIGN_SYSTEM.fonts.mono,
+            backgroundColor: `${envColor}15`,
+            color: envColor,
+            border: `1px solid ${envColor}40`,
+            letterSpacing: '0.5px',
+        }}>
+            {isQA ? '🔧' : '🚀'} {envName}
+        </span>
+    );
+};
+
 // Glowing Button Component
 const GlowButton = ({
     children,
@@ -727,8 +753,9 @@ const SqlHistoryPanel = ({
 };
 
 // Admin Panels Component - Compact Design
-const AdminPanels = ({ isOpen, onToggle, onUserSync, onWecomAction, userSyncState, kajialiSyncState, pendingSyncCount, currentSyncCount }) => {
-    const [corpId, setCorpId] = useState('ww923b6887a01cf5a2');
+const AdminPanels = ({ isOpen, onToggle, onUserSync, onWecomAction, userSyncState, kajialiSyncState, pendingSyncCount, currentSyncCount, initUserAadIds, setInitUserAadIds }) => {
+    const isQA = import.meta.env.VITE_API_BASE?.includes('qa-kip-service-internal.kerryplus.com');
+    const [corpId, setCorpId] = useState(isQA ? 'ww4aaccf11cd9ae333' : 'ww923b6887a01cf5a2');
     const [aadIds, setAadIds] = useState('');
 
     return (
@@ -911,11 +938,29 @@ const AdminPanels = ({ isOpen, onToggle, onUserSync, onWecomAction, userSyncStat
                                 >
                                     Sync Depts
                                 </GlowButton>
+                                <input
+                                    type="text"
+                                    placeholder="AAD IDs (逗号分隔)"
+                                    value={initUserAadIds}
+                                    onChange={(e) => setInitUserAadIds(e.target.value)}
+                                    style={{
+                                        backgroundColor: DESIGN_SYSTEM.colors.bg.tertiary,
+                                        border: `1px solid ${DESIGN_SYSTEM.colors.border.medium}`,
+                                        borderRadius: '4px',
+                                        padding: '4px 8px',
+                                        color: DESIGN_SYSTEM.colors.text.primary,
+                                        fontSize: '11px',
+                                        marginBottom: '6px',
+                                        width: '100%',
+                                        boxSizing: 'border-box',
+                                    }}
+                                />
                                 <GlowButton
                                     variant="secondary"
                                     icon={Users}
-                                    onClick={() => onWecomAction('/initUser', '/initUser')}
+                                    onClick={() => onWecomAction('/initUser', '/initUser', initUserAadIds)}
                                     loading={kajialiSyncState.loading}
+                                    disabled={!initUserAadIds.trim()}
                                     style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center' }}
                                 >
                                     Sync Users
@@ -1504,6 +1549,7 @@ const DatabaseManagementApp = () => {
         error: null,
         logs: [],
     });
+    const [initUserAadIds, setInitUserAadIds] = useState('');
     const [sfeFetchState, setSfeFetchState] = useState({
         loading: false,
         error: null,
@@ -1806,7 +1852,7 @@ const DatabaseManagementApp = () => {
         }
     };
 
-    const handleWecomAction = async (endpoint, actionType) => {
+    const handleWecomAction = async (endpoint, actionType, aadIds = '') => {
         const actionName = actionType === '/syncDept' ? 'Departments' : 'Users';
 
         const pollSyncCount = async () => {
@@ -1843,7 +1889,19 @@ const DatabaseManagementApp = () => {
             // Start polling the sync count
             const pollInterval = setInterval(pollSyncCount, 2000);
 
-            await fetch(endpoint, { method: 'GET' });
+            // 根据端点类型选择请求方式
+            if (actionType === '/initUser') {
+                // POST with JSON body for initUser
+                const aadIdList = aadIds.split(',').map(id => id.trim()).filter(id => id);
+                await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(aadIdList)
+                });
+            } else {
+                // GET for syncDept
+                await fetch(endpoint, { method: 'GET' });
+            }
 
             // Stop polling
             clearInterval(pollInterval);
@@ -2042,15 +2100,18 @@ const DatabaseManagementApp = () => {
                                 <Database size={22} style={{ color: '#0a0a0f' }} />
                             </div>
                             <div>
-                                <h1 style={{
-                                    fontSize: '16px',
-                                    fontWeight: 700,
-                                    margin: 0,
-                                    letterSpacing: '-0.5px',
-                                    fontFamily: DESIGN_SYSTEM.fonts.display,
-                                }}>
-                                    DB Manager
-                                </h1>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <h1 style={{
+                                        fontSize: '16px',
+                                        fontWeight: 700,
+                                        margin: 0,
+                                        letterSpacing: '-0.5px',
+                                        fontFamily: DESIGN_SYSTEM.fonts.display,
+                                    }}>
+                                        DB Manager
+                                    </h1>
+                                    <EnvironmentBadge />
+                                </div>
                                 <p style={{
                                     fontSize: '10px',
                                     color: DESIGN_SYSTEM.colors.text.muted,
@@ -2237,6 +2298,8 @@ const DatabaseManagementApp = () => {
                                     kajialiSyncState={kajialiSyncState}
                                     pendingSyncCount={pendingSyncCount}
                                     currentSyncCount={currentSyncCount}
+                                    initUserAadIds={initUserAadIds}
+                                    setInitUserAadIds={setInitUserAadIds}
                                 />
                             </div>
                             <div style={{ flex: '0 0 280px', flexShrink: 0 }}>

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
-    // const BASE_URL  = 'https://proda-kip-service-internal.kerryplus.com'
+    // const BASE_URL  = 'https://prodb-kip-service-internal.kerryplus.com'
     const BASE_URL  = 'https://qa-kip-service-internal.kerryplus.com'
     console.log(`Starting Vite dev server in ${BASE_URL} mode with network access enabled`)
     
