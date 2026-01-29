@@ -960,7 +960,6 @@ const AdminPanels = ({ isOpen, onToggle, onUserSync, onWecomAction, userSyncStat
                                     icon={Users}
                                     onClick={() => onWecomAction('/initUser', '/initUser', initUserAadIds)}
                                     loading={kajialiSyncState.loading}
-                                    disabled={!initUserAadIds.trim()}
                                     style={{ padding: '6px 10px', fontSize: '11px', justifyContent: 'center' }}
                                 >
                                     Sync Users
@@ -2247,26 +2246,26 @@ const DatabaseManagementApp = () => {
                             >
                                 Sync AAD
                             </GlowButton>
-                            <GlowButton
+                            {/* <GlowButton
                                 variant="ghost"
                                 icon={showSidebar ? PanelLeftClose : PanelLeftOpen}
                                 onClick={() => setShowSidebar(!showSidebar)}
                                 title={showSidebar ? 'Hide Sidebar' : 'Show Sidebar'}
-                            />
-                            <GlowButton
+                            /> */}
+                            {/* <GlowButton
                                 variant="ghost"
                                 icon={Shield}
                                 onClick={() => setShowAdminPanels(!showAdminPanels)}
                             >
                                 Admin
-                            </GlowButton>
-                            <GlowButton
+                            </GlowButton> */}
+                            {/* <GlowButton
                                 variant="ghost"
                                 icon={Download}
                                 onClick={() => setShowSfePanel(!showSfePanel)}
                             >
                                 SFE
-                            </GlowButton>
+                            </GlowButton> */}
                         </div>
                     </div>
 
@@ -2288,7 +2287,7 @@ const DatabaseManagementApp = () => {
                                     localStorage.removeItem('sqlHistory');
                                 }}
                             />
-                            <div style={{ flex: '0 0 280px', flexShrink: 0 }}>
+                            <div style={{ flex: '0 0 580px', flexShrink: 0 }}>
                                 <AdminPanels
                                     isOpen={showAdminPanels}
                                     onToggle={() => setShowAdminPanels(!showAdminPanels)}
@@ -2302,7 +2301,7 @@ const DatabaseManagementApp = () => {
                                     setInitUserAadIds={setInitUserAadIds}
                                 />
                             </div>
-                            <div style={{ flex: '0 0 280px', flexShrink: 0 }}>
+                            {/* <div style={{ flex: '0 0 280px', flexShrink: 0 }}>
                                 <SfeDataPanel
                                     isOpen={showSfePanel}
                                     onToggle={() => setShowSfePanel(!showSfePanel)}
@@ -2313,7 +2312,7 @@ const DatabaseManagementApp = () => {
                                     sfeFetchState={sfeFetchState}
                                     sfeData={sfeData}
                                 />
-                            </div>
+                            </div> */}
                         </div>
 
                         {/* SQL Editor */}
